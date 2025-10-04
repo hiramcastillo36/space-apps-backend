@@ -32,14 +32,14 @@ class WeatherAgentService:
         types.Tool(
             function_declarations=[
                 types.FunctionDeclaration(
-                    name="get_space_weather_data",
-                    description="Obtiene datos actuales del clima espacial desde una API externa",
+                    name="get_weather_data",
+                    description="Obtiene datos actuales del clima desde una API externa",
                     parameters=types.Schema(
                         type=types.Type.OBJECT,
                         properties={
                             "data_type": types.Schema(
                                 type=types.Type.STRING,
-                                description="Tipo de datos a obtener: 'solar', 'geomagnetic', 'radiation'",
+                                description="Es e",
                             )
                         },
                         required=["data_type"]
@@ -138,7 +138,7 @@ class WeatherAgentService:
 
 
         # Tu función existente para el clima espacial
-        if function_name == "get_space_weather_data":
+        if function_name == "get_weather_data":
             # ... (tu código sin cambios)
             pass
 
