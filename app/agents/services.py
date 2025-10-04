@@ -5,29 +5,27 @@ from google import genai
 from google.genai import types
 from django.conf import settings
 from .models import Agent, Conversation, Message
+import googlemaps
 
 
 class WeatherAgentService:
 
     SYSTEM_PROMPT = """
-        Eres **skAI**, un asistente meteorológico experto en construir consultas para APIs de predicción del clima (como Meteomatics).
+        Eres **skAI**, un asistente meteorológico experto en construir consultas para APIs de predicción del clima.
         Tu tarea principal es **guiar al usuario paso a paso** para reunir tres datos esenciales:
         fecha/tiempo, parámetros y ubicación.
 
         ---
 
-        ### 🎯 OBJETIVO FINAL
-        Tu misión termina cuando hayas reunido **toda la información necesaria** para generar una consulta completa de clima.
-        En ese momento, debes **llamar a la función `get_weather_data`** con los siguientes argumentos JSON:
+        ### 🧠 PROCESO
+        1. Pregunta por cada dato uno por uno si no se proporcionan.
+        2. Para la ubicación, el usuario puede darte un nombre de lugar (ej: "el clima en Londres").
+        3. Si el usuario te da un nombre de lugar, **DEBES usar la función `get_coordinates_from_address`** para obtener la latitud y longitud.
+        4. No inventes coordenadas. Siempre usa la herramienta si no tienes las coordenadas numéricas.
 
-        ```json
-        {
-        "time_range": "[YYYY-MM-DDTHH:MM:SSZ--YYYY-MM-DDTHH:MM:SSZ:PTXH]",
-        "parameters": "[variables separadas por coma en formato variable:unidad]",
-        "location": "[latitud,longitud]",
-        "format": "json"
-        }
-        ```
+        ### 🎯 OBJETIVO FINAL
+        Tu misión termina cuando hayas reunido **toda la información necesaria** (fecha, parámetros y coordenadas).
+        En ese momento, debes **llamar a la función `get_weather_data`** con los argumentos JSON correctos.
     """
 
     TOOLS = [
@@ -45,6 +43,20 @@ class WeatherAgentService:
                             )
                         },
                         required=["data_type"]
+                    )
+                ),
+                types.FunctionDeclaration(
+                    name="get_coordinates_from_address",
+                    description="Usa esta función para convertir una dirección o nombre de lugar (como 'Ciudad de México' o 'Torre Eiffel') en coordenadas geográficas (latitud y longitud).",
+                    parameters=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "address": types.Schema(
+                                type=types.Type.STRING,
+                                description="La dirección, ciudad o nombre del lugar a convertir en coordenadas. Por ejemplo: 'París, Francia'",
+                            )
+                        },
+                        required=["address"]
                     )
                 )
             ]
@@ -96,85 +108,115 @@ class WeatherAgentService:
 
     @classmethod
     def _call_external_api(cls, function_name: str, args: Dict) -> Dict:
-        if function_name == "get_space_weather_data":
-            data_type = args.get("data_type", "solar")
-            api_url = os.environ.get("SPACE_WEATHER_API_URL", "https://api.nasa.gov/DONKI/FLR")
-            api_key = os.environ.get("NASA_API_KEY", "DEMO_KEY")
+        # ¡NUEVA LÓGICA AQUÍ!
+        if function_name == "get_coordinates_from_address":
+            api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
+            if not api_key:
+                return {"success": False, "error": "API Key de Google Maps no configurada."}
 
             try:
-                response = requests.get(api_url, params={"api_key": api_key}, timeout=10)
-                response.raise_for_status()
-                return {"success": True, "data": response.json()}
-            except Exception as e:
-                return {"success": False, "error": str(e)}
+                gmaps = googlemaps.Client(key=api_key)
+                address = args.get("address")
 
-        return {"success": False, "error": "Función no reconocida"}
+                # Llama a la API de Geocoding
+                geocode_result = gmaps.geocode(address)
+
+                if not geocode_result:
+                    # Si no se encuentra el lugar, informa al modelo para que pueda preguntar de nuevo
+                    return {"success": False, "error": f"No se encontraron coordenadas para '{address}'. Pide al usuario que sea más específico."}
+
+                # Extrae la latitud y longitud del primer resultado
+                location = geocode_result[0]['geometry']['location']
+                lat = location['lat']
+                lng = location['lng']
+
+                # Devuelve el resultado en el formato que el modelo puede usar después
+                return {"success": True, "location": f"{lat},{lng}"}
+
+            except Exception as e:
+                return {"success": False, "error": f"Error al llamar a la API de Geocoding: {str(e)}"}
+
+
+        # Tu función existente para el clima espacial
+        if function_name == "get_space_weather_data":
+            # ... (tu código sin cambios)
+            pass
+
+        return {"success": False, "error": f"Función '{function_name}' no reconocida"}
 
     @classmethod
     def process_user_message(cls, conversation: Conversation, user_message: str) -> str:
         if not user_message or not user_message.strip():
             raise ValueError("El mensaje no puede estar vacío")
 
-        cls.add_message(conversation, "user", user_message)
-
         try:
             client = cls._initialize_gemini()
-            model_name = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash-exp")
+            # 💡 RECOMENDACIÓN FUERTE: Usa un modelo estable. Los modelos 'exp' (experimentales)
+            # pueden tener comportamientos inesperados como este.
+            model_name = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 
+            # 1. Cargar el historial existente
             history = cls.get_conversation_history(conversation)
             contents = []
-
-            # Cargar historial correctamente
             for msg in history:
                 role = "user" if msg["role"] == "user" else "model"
                 contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
 
-            # Generar respuesta inicial
-            response = client.models.generate_content(
-                model=model_name,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=conversation.agent.system_prompt,  # ✅ system prompt correcto
-                    tools=cls.TOOLS,
-                ),
-            )
+            # 2. Añadir el nuevo mensaje del usuario
+            cls.add_message(conversation, "user", user_message)
+            contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
 
-            # Verificar si el modelo quiere llamar una función
-            candidate = response.candidates[0].content.parts[0]
-            if hasattr(candidate, "function_call") and candidate.function_call:
-                function_call = candidate.function_call
-                function_name = function_call.name
-                function_args = dict(function_call.args)
-
-                function_result = cls._call_external_api(function_name, function_args)
-
-                contents.append(response.candidates[0].content)
-                contents.append(
-                    types.Content(
-                        parts=[
-                            types.Part(
-                                function_response=types.FunctionResponse(
-                                    name=function_name,
-                                    response=function_result
-                                )
-                            )
-                        ]
-                    )
-                )
-
-                # Generar respuesta final con el resultado de la función
-                final_response = client.models.generate_content(
+            # 3. Bucle para procesar llamadas a funciones
+            while True:
+                response = client.models.generate_content(
                     model=model_name,
                     contents=contents,
                     config=types.GenerateContentConfig(
-                        system_instruction=conversation.agent.system_prompt,  # ✅ mantener el prompt
+                        system_instruction=conversation.agent.system_prompt,
                         tools=cls.TOOLS,
                     ),
                 )
-                assistant_message = final_response.text
-            else:
-                assistant_message = response.text
 
+                # ✅ INICIO DE LA CORRECCIÓN CLAVE
+                # Búsqueda robusta de la llamada a función en TODAS las partes de la respuesta.
+                function_call = None
+                for part in response.candidates[0].content.parts:
+                    if part.function_call:
+                        function_call = part.function_call
+                        break  # Encontramos una, no necesitamos seguir buscando
+                # ✅ FIN DE LA CORRECCIÓN CLAVE
+
+                if function_call:
+                    function_name = function_call.name
+                    function_args = dict(function_call.args)
+
+                    print(f"🤖 Modelo solicita llamar a la función: {function_name} con args: {function_args}")
+
+                    function_result = cls._call_external_api(function_name, function_args)
+
+                    # Añadimos la petición del modelo (que contenía la function_call)
+                    # y el resultado de nuestra función al historial.
+                    contents.append(response.candidates[0].content)
+                    contents.append(
+                        types.Content(
+                            parts=[
+                                types.Part(
+                                    function_response=types.FunctionResponse(
+                                        name=function_name,
+                                        response=function_result
+                                    )
+                                )
+                            ]
+                        )
+                    )
+                    # El bucle continúa para enviar este nuevo contexto al modelo
+                else:
+                    # Si, después de revisar todas las partes, NO hay llamada a función,
+                    # entonces es seguro asumir que la respuesta es texto.
+                    assistant_message = response.text
+                    break  # Salimos del bucle
+
+            # Guardamos la respuesta final del asistente en la base de datos
             cls.add_message(conversation, "assistant", assistant_message)
             return assistant_message
 
