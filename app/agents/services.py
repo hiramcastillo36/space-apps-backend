@@ -197,6 +197,9 @@ class WeatherAgentService:
         try:
             import json
 
+            # Debug: imprimir los argumentos recibidos
+            print(f"Guardando evento con args: {args}")
+            # Extraer y validar los argumentos necesarios
             event_name = args.get("event_name")
             event_date_str = args.get("event_date")
             location_name = args.get("location_name", "")
