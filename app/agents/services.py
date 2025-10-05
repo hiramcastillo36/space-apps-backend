@@ -33,16 +33,24 @@ class WeatherAgentService:
             function_declarations=[
                 types.FunctionDeclaration(
                     name="get_weather_data",
-                    description="Obtiene datos actuales del clima desde una API externa",
+                    description="Obtiene datos meteorológicos desde la API de Meteomatics. Requiere fecha/tiempo en formato ISO (YYYY-MM-DDTHH:MM:SSZ), parámetros meteorológicos (ej: 't_2m:C' para temperatura), y coordenadas (latitud,longitud).",
                     parameters=types.Schema(
                         type=types.Type.OBJECT,
                         properties={
-                            "data_type": types.Schema(
+                            "datetime": types.Schema(
                                 type=types.Type.STRING,
-                                description="Es e",
+                                description="Fecha y hora en formato ISO 8601 (ej: '2024-01-15T12:00:00Z'). Para rangos usar formato YYYY-MM-DDTHH:MM:SSZ--YYYY-MM-DDTHH:MM:SSZ:PT1H",
+                            ),
+                            "parameters": types.Schema(
+                                type=types.Type.STRING,
+                                description="Parámetros meteorológicos separados por comas (ej: 't_2m:C,precip_1h:mm,wind_speed_10m:ms')",
+                            ),
+                            "coordinates": types.Schema(
+                                type=types.Type.STRING,
+                                description="Coordenadas en formato 'latitud,longitud' (ej: '47.3667,8.5500')",
                             )
                         },
-                        required=["data_type"]
+                        required=["datetime", "parameters", "coordinates"]
                     )
                 ),
                 types.FunctionDeclaration(
@@ -108,7 +116,6 @@ class WeatherAgentService:
 
     @classmethod
     def _call_external_api(cls, function_name: str, args: Dict) -> Dict:
-        # ¡NUEVA LÓGICA AQUÍ!
         if function_name == "get_coordinates_from_address":
             api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
             if not api_key:
@@ -118,29 +125,48 @@ class WeatherAgentService:
                 gmaps = googlemaps.Client(key=api_key)
                 address = args.get("address")
 
-                # Llama a la API de Geocoding
                 geocode_result = gmaps.geocode(address)
 
                 if not geocode_result:
-                    # Si no se encuentra el lugar, informa al modelo para que pueda preguntar de nuevo
                     return {"success": False, "error": f"No se encontraron coordenadas para '{address}'. Pide al usuario que sea más específico."}
 
-                # Extrae la latitud y longitud del primer resultado
                 location = geocode_result[0]['geometry']['location']
                 lat = location['lat']
                 lng = location['lng']
 
-                # Devuelve el resultado en el formato que el modelo puede usar después
                 return {"success": True, "location": f"{lat},{lng}"}
 
             except Exception as e:
                 return {"success": False, "error": f"Error al llamar a la API de Geocoding: {str(e)}"}
 
 
-        # Tu función existente para el clima espacial
         if function_name == "get_weather_data":
-            # ... (tu código sin cambios)
-            pass
+            username = os.environ.get("METEOMATICS_USERNAME")
+            password = os.environ.get("METEOMATICS_PASSWORD")
+            base_url = os.environ.get("METEOMATICS_API_URL", "https://api.meteomatics.com")
+
+            if not username or not password:
+                return {"success": False, "error": "Credenciales de Meteomatics no configuradas"}
+
+            try:
+                datetime_str = args.get("datetime")
+                parameters = args.get("parameters")
+                coordinates = args.get("coordinates")
+
+                url = f"{base_url}/{datetime_str}/{parameters}/{coordinates}/json"
+
+                response = requests.get(url, auth=(username, password), timeout=10)
+
+                print(f"🌐 Llamada a Meteomatics: {url} - Código de estado: {response.status_code}")
+                print(f"Respuesta: {response.text}")
+
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                else:
+                    return {"success": False, "error": f"API respondió con código {response.status_code}: {response.text}"}
+
+            except Exception as e:
+                return {"success": False, "error": f"Error al consultar Meteomatics: {str(e)}"}
 
         return {"success": False, "error": f"Función '{function_name}' no reconocida"}
 
@@ -151,22 +177,17 @@ class WeatherAgentService:
 
         try:
             client = cls._initialize_gemini()
-            # 💡 RECOMENDACIÓN FUERTE: Usa un modelo estable. Los modelos 'exp' (experimentales)
-            # pueden tener comportamientos inesperados como este.
             model_name = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 
-            # 1. Cargar el historial existente
             history = cls.get_conversation_history(conversation)
             contents = []
             for msg in history:
                 role = "user" if msg["role"] == "user" else "model"
                 contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
 
-            # 2. Añadir el nuevo mensaje del usuario
             cls.add_message(conversation, "user", user_message)
             contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
 
-            # 3. Bucle para procesar llamadas a funciones
             while True:
                 response = client.models.generate_content(
                     model=model_name,
@@ -177,14 +198,11 @@ class WeatherAgentService:
                     ),
                 )
 
-                # ✅ INICIO DE LA CORRECCIÓN CLAVE
-                # Búsqueda robusta de la llamada a función en TODAS las partes de la respuesta.
                 function_call = None
                 for part in response.candidates[0].content.parts:
                     if part.function_call:
                         function_call = part.function_call
-                        break  # Encontramos una, no necesitamos seguir buscando
-                # ✅ FIN DE LA CORRECCIÓN CLAVE
+                        break
 
                 if function_call:
                     function_name = function_call.name
@@ -194,8 +212,6 @@ class WeatherAgentService:
 
                     function_result = cls._call_external_api(function_name, function_args)
 
-                    # Añadimos la petición del modelo (que contenía la function_call)
-                    # y el resultado de nuestra función al historial.
                     contents.append(response.candidates[0].content)
                     contents.append(
                         types.Content(
@@ -209,14 +225,10 @@ class WeatherAgentService:
                             ]
                         )
                     )
-                    # El bucle continúa para enviar este nuevo contexto al modelo
                 else:
-                    # Si, después de revisar todas las partes, NO hay llamada a función,
-                    # entonces es seguro asumir que la respuesta es texto.
                     assistant_message = response.text
-                    break  # Salimos del bucle
+                    break
 
-            # Guardamos la respuesta final del asistente en la base de datos
             cls.add_message(conversation, "assistant", assistant_message)
             return assistant_message
 
