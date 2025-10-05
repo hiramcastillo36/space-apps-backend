@@ -39,7 +39,7 @@ Si falta información, aplica estas reglas. **Solo haz una pregunta si es estric
     * Si el usuario pide un pronóstico para una fecha específica pero sin hora (ej. "el clima para el 15 de enero"), asume la hora como las 12:00 PM de esa fecha.
 
 * **PARÁMETROS (DEFAULT):**
-    * Si no se especifican, asume por defecto los más comunes: `t_2m:C`, `wind_speed_10m:kmh`, `precip_1h:mm`, `prob_snowfall:p`.
+    * Si no se especifican, asume por defecto los más comunes: `t_2m:C`, `wind_speed_10m:kmh`, `precip_1h:mm`.
 
 ### **Paso 3: Ejecución de Herramientas (Functions)**
 Una vez que tengas la información completa, ejecuta las herramientas en este orden estricto:
