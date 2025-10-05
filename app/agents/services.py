@@ -61,9 +61,15 @@ class WeatherAgentService:
            - Viento (calmo, moderado, fuerte)
            - Precipitación (si habrá lluvia o estará seco)
            - Cualquier otro parámetro relevante consultado
+        4. **Recomendaciones personalizadas** basadas en el evento o actividad que el usuario mencionó:
+           - Si menciona una fiesta al aire libre: recomienda si es buen momento, qué llevar (sombrilla, abrigo, etc.)
+           - Si menciona un viaje: sugiere vestimenta apropiada y precauciones
+           - Si menciona deporte: indica si las condiciones son favorables
+           - Si menciona trabajo al aire libre: advierte sobre condiciones extremas
+           - Si no menciona ninguna actividad específica, ofrece consejos generales para el día.
 
         **Ejemplo de respuesta:**
-        "He consultado el clima para San Luis Potosí el 15 de enero de 2025 a las 12:00. La temperatura será de 22°C (agradable), con vientos moderados de 15 km/h y sin precipitaciones esperadas. ¡Perfecto para actividades al aire libre! ☀️"
+        "He consultado el clima para San Luis Potosí el 15 de enero de 2025 a las 12:00. La temperatura será de 22°C (agradable), con vientos moderados de 15 km/h y sin precipitaciones esperadas. ¡Perfecto para tu fiesta al aire libre! 🎉 Te recomiendo tener una carpa por si acaso y llevar bebidas frescas. La temperatura es ideal, así que no necesitarás calefacción exterior."
 
         ### 📅 GUARDADO DE EVENTOS
 
