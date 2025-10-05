@@ -209,7 +209,7 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
     def _determine_mood(cls, assistant_message: str, weather_data: Dict = None) -> str:
         """
         Determina el mood/estado para iluminar la interfaz basado en la respuesta y datos meteorológicos
-        Returns: 'sunny', 'cloudy', 'rainy', 'stormy', 'cold', 'hot', 'neutral', 'success', 'loading'
+        Returns: 'sunny', 'cloudy', 'rainy', 'stormy', 'cold', 'hot', 'snow', 'neutral', 'success', 'loading'
         """
         message_lower = assistant_message.lower()
 
@@ -241,6 +241,12 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
         elif any(word in message_lower for word in ['consultando', 'obteniendo', 'buscando', 'procesando']):
             return 'loading'
 
+        # Detectar nieve basado en temperatura baja + precipitación
+        if temperature is not None and precipitation is not None:
+            if temperature <= 0 and precipitation > 0.5:
+                # Temperatura bajo cero con precipitación = nieve
+                return 'snow'
+
         # Determinar mood basado en datos meteorológicos reales
         if precipitation is not None and precipitation > 5.0:
             # Lluvia fuerte
@@ -268,7 +274,9 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
                 return 'sunny'
 
         # Fallback a palabras clave del mensaje
-        if any(word in message_lower for word in ['tormenta', 'vendaval', 'ráfagas', 'viento fuerte', '⛈️', 'peligro']):
+        if any(word in message_lower for word in ['nieve', 'nevada', 'nevando', 'neva', 'granizo', '❄️', '⛄', 'snowfall']):
+            return 'snow'
+        elif any(word in message_lower for word in ['tormenta', 'vendaval', 'ráfagas', 'viento fuerte', '⛈️', 'peligro']):
             return 'stormy'
         elif any(word in message_lower for word in ['lluvia', 'llover', 'precipitación', 'mojado', '🌧️', 'paraguas']):
             return 'rainy'
@@ -278,7 +286,7 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
             return 'cloudy'
         elif any(word in message_lower for word in ['calor', 'caluroso', 'sofocante', 'muy caliente', '🔥']):
             return 'hot'
-        elif any(word in message_lower for word in ['frío', 'helado', 'congelante', 'muy frío', '❄️']):
+        elif any(word in message_lower for word in ['frío', 'helado', 'congelante', 'muy frío', 'glacial']):
             return 'cold'
 
         return 'neutral'
