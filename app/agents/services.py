@@ -71,8 +71,11 @@ Tu respuesta debe contener:
 
 * **Temperatura:** `t_2m:C`, `t_2m:F`, `t_max_2m_24h:C`, `t_min_2m_24h:C`
 * **Precipitación:** `precip_1h:mm`, `precip_24h:mm`, `prob_precip_1h:p`
+* **Nieve:** `prob_snowfall:p`
 * **Viento:** `wind_speed_10m:ms`, `wind_speed_10m:kmh`, `wind_dir_10m:d`, `wind_gusts_10m_1h:ms`
 * **Otros:** `cloud_cover:p`, `visibility:m`, `relative_humidity_2m:p`, `msl_pressure:hPa`, `uv:idx`
+
+**NOTA IMPORTANTE:** NO uses parámetros como `snow_depth:cm`, `fresh_snow_1h:cm`, `frost_depth:cm`, `soil_frost:p`, o `dew_point_2m:C` ya que NO están disponibles en el modelo mix de la API.
 
 ## 4. 🗣️ Tono y Estilo de Comunicación
 Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la interacción se sienta fácil y agradable.
@@ -93,7 +96,7 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
                             ),
                             "parameters": types.Schema(
                                 type=types.Type.STRING,
-                                description="Parámetros meteorológicos separados por comas (ej: 't_2m:C,precip_1h:mm,wind_speed_10m:ms')",
+                                description="Parámetros meteorológicos separados por comas (ej: 't_2m:C,precip_1h:mm,wind_speed_10m:ms,snow_depth:cm').",
                             ),
                             "coordinates": types.Schema(
                                 type=types.Type.STRING,
@@ -217,6 +220,8 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
         temperature = None
         precipitation = None
         wind_speed = None
+        prob_snowfall = None
+        snow_depth = None
 
         if weather_data and isinstance(weather_data, dict) and "data" in weather_data:
             for param in weather_data["data"]:
@@ -234,6 +239,10 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
                                 precipitation = value
                             elif "wind_speed" in param_name:
                                 wind_speed = value
+                            elif "prob_snowfall" in param_name:
+                                prob_snowfall = value
+                            elif "snow_depth" in param_name:
+                                snow_depth = value
 
         # Priorizar estados específicos basados en palabras clave
         if any(word in message_lower for word in ['guardado', 'evento guardado', 'registrado', '✅']):
@@ -241,10 +250,23 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
         elif any(word in message_lower for word in ['consultando', 'obteniendo', 'buscando', 'procesando']):
             return 'loading'
 
-        # Detectar nieve basado en temperatura baja + precipitación
+        # Detectar nieve
+        # 1. Profundidad de nieve detectada
+        if snow_depth is not None and snow_depth > 0:
+            return 'snow'
+
+        # 2. Alta probabilidad de nevada
+        if prob_snowfall is not None and prob_snowfall > 50:
+            return 'snow'
+
+        # 3. Temperatura bajo cero + precipitación = nieve
         if temperature is not None and precipitation is not None:
-            if temperature <= 0 and precipitation > 0.5:
-                # Temperatura bajo cero con precipitación = nieve
+            if temperature <= 0 and precipitation > 0.2:
+                return 'snow'
+
+        # 4. Temperatura muy baja + palabras clave de nieve (montañas, lugares fríos)
+        if temperature is not None and temperature < -2:
+            if any(word in message_lower for word in ['nieve', 'nevada', 'nevado', 'congelado', 'helado']):
                 return 'snow'
 
         # Determinar mood basado en datos meteorológicos reales
@@ -266,9 +288,6 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
             # Temperatura extremadamente caliente (>35°C)
             if temperature > 35:
                 return 'hot'
-            # Temperatura fría (<5°C)
-            elif temperature < 5:
-                return 'cold'
             # Temperatura agradable y sin precipitación = sunny
             elif temperature >= 18 and temperature <= 28 and (precipitation is None or precipitation < 0.5):
                 return 'sunny'
@@ -320,6 +339,8 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
             temperature = None
             precipitation = None
             wind_speed = None
+            prob_snowfall = None
+            snow_depth = None
 
             if weather_data_str:
                 weather_data = {"raw": weather_data_str}
@@ -357,6 +378,10 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
                                                 precipitation = value
                                             elif "wind_speed" in param_name:
                                                 wind_speed = value
+                                            elif "prob_snowfall" in param_name:
+                                                prob_snowfall = value
+                                            elif "snow_depth" in param_name:
+                                                snow_depth = value
 
                 except Exception as e:
                     print(f"⚠️ Error extrayendo parámetros: {e}")
@@ -372,7 +397,9 @@ Mantén siempre un tono natural, amigable, positivo y servicial. Haz que la inte
                 weather_data=weather_data,
                 temperature=temperature,
                 precipitation=precipitation,
-                wind_speed=wind_speed
+                wind_speed=wind_speed,
+                prob_snowfall=prob_snowfall,
+                snow_depth=snow_depth
             )
 
             return {

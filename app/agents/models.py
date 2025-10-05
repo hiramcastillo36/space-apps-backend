@@ -100,6 +100,8 @@ class Event(models.Model):
     temperature = models.FloatField(null=True, blank=True, help_text="Temperatura en °C")
     precipitation = models.FloatField(null=True, blank=True, help_text="Precipitación en mm")
     wind_speed = models.FloatField(null=True, blank=True, help_text="Velocidad del viento en km/h")
+    prob_snowfall = models.FloatField(null=True, blank=True, help_text="Probabilidad de nevada en %")
+    snow_depth = models.FloatField(null=True, blank=True, help_text="Profundidad de nieve en cm")
 
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
