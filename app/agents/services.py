@@ -207,26 +207,80 @@ class WeatherAgentService:
     @classmethod
     def _determine_mood(cls, assistant_message: str, weather_data: Dict = None) -> str:
         """
-        Determina el mood/estado para iluminar la interfaz basado en la respuesta
-        Returns: 'sunny', 'cloudy', 'rainy', 'stormy', 'neutral', 'success', 'loading'
+        Determina el mood/estado para iluminar la interfaz basado en la respuesta y datos meteorológicos
+        Returns: 'sunny', 'cloudy', 'rainy', 'stormy', 'cold', 'hot', 'neutral', 'success', 'loading'
         """
         message_lower = assistant_message.lower()
 
-        # Palabras clave para diferentes moods
-        if any(word in message_lower for word in ['soleado', 'despejado', 'perfecto', 'excelente', 'ideal', '☀️', 'sol']):
-            return 'sunny'
-        elif any(word in message_lower for word in ['lluvia', 'llover', 'precipitación', 'mojado', '🌧️', 'paraguas']):
-            return 'rainy'
-        elif any(word in message_lower for word in ['tormenta', 'vendaval', 'ráfagas', 'viento fuerte', '⛈️', 'peligro']):
-            return 'stormy'
-        elif any(word in message_lower for word in ['nublado', 'nubes', 'cubierto', 'gris', '☁️']):
-            return 'cloudy'
-        elif any(word in message_lower for word in ['guardado', 'evento guardado', 'registrado', '✅']):
+        # Extraer datos meteorológicos si están disponibles
+        temperature = None
+        precipitation = None
+        wind_speed = None
+
+        if weather_data and isinstance(weather_data, dict) and "data" in weather_data:
+            for param in weather_data["data"]:
+                if isinstance(param, dict):
+                    param_name = param.get("parameter", "")
+                    coords = param.get("coordinates", [])
+                    if coords and isinstance(coords, list) and len(coords) > 0:
+                        dates = coords[0].get("dates", [])
+                        if dates and isinstance(dates, list) and len(dates) > 0:
+                            value = dates[0].get("value")
+
+                            if "t_2m:C" in param_name:
+                                temperature = value
+                            elif "precip" in param_name and "mm" in param_name:
+                                precipitation = value
+                            elif "wind_speed" in param_name:
+                                wind_speed = value
+
+        # Priorizar estados específicos basados en palabras clave
+        if any(word in message_lower for word in ['guardado', 'evento guardado', 'registrado', '✅']):
             return 'success'
         elif any(word in message_lower for word in ['consultando', 'obteniendo', 'buscando', 'procesando']):
             return 'loading'
-        else:
-            return 'neutral'
+
+        # Determinar mood basado en datos meteorológicos reales
+        if precipitation is not None and precipitation > 5.0:
+            # Lluvia fuerte
+            if wind_speed and wind_speed > 40:
+                return 'stormy'
+            return 'rainy'
+
+        if precipitation is not None and precipitation > 0.5:
+            # Lluvia ligera o llovizna
+            return 'rainy'
+
+        if wind_speed is not None and wind_speed > 50:
+            # Viento muy fuerte
+            return 'stormy'
+
+        if temperature is not None:
+            # Temperatura extremadamente caliente (>35°C)
+            if temperature > 35:
+                return 'hot'
+            # Temperatura fría (<5°C)
+            elif temperature < 5:
+                return 'cold'
+            # Temperatura agradable y sin precipitación = sunny
+            elif temperature >= 18 and temperature <= 28 and (precipitation is None or precipitation < 0.5):
+                return 'sunny'
+
+        # Fallback a palabras clave del mensaje
+        if any(word in message_lower for word in ['tormenta', 'vendaval', 'ráfagas', 'viento fuerte', '⛈️', 'peligro']):
+            return 'stormy'
+        elif any(word in message_lower for word in ['lluvia', 'llover', 'precipitación', 'mojado', '🌧️', 'paraguas']):
+            return 'rainy'
+        elif any(word in message_lower for word in ['soleado', 'despejado', 'perfecto', 'excelente', 'ideal', '☀️', 'sol']):
+            return 'sunny'
+        elif any(word in message_lower for word in ['nublado', 'nubes', 'cubierto', 'gris', '☁️']):
+            return 'cloudy'
+        elif any(word in message_lower for word in ['calor', 'caluroso', 'sofocante', 'muy caliente', '🔥']):
+            return 'hot'
+        elif any(word in message_lower for word in ['frío', 'helado', 'congelante', 'muy frío', '❄️']):
+            return 'cold'
+
+        return 'neutral'
 
     @classmethod
     def _initialize_gemini(cls):
