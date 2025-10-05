@@ -34,7 +34,7 @@ class WeatherAgentService:
             * Si **NO** hay ubicación, tu única pregunta debe ser: *"¡Claro! ¿Para qué ciudad o lugar necesitas el pronóstico?"*
 
         * **FECHA/TIEMPO (DEFAULT):**
-            * Si no se especifica, asume por defecto el pronóstico para las **próximas 24 horas**.
+            * Si no se especifica, tu única pregunta debe ser: *"¿Para qué fecha y hora necesitas el pronóstico?"*
 
         * **PARÁMETROS (DEFAULT):**
             * Si no se especifican, asume por defecto los más comunes: `t_2m:C`, `wind_speed_10m:kmh`, `precip_1h:mm`.
