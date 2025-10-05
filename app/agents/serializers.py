@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Agent, Conversation, Message
+from .models import Agent, Conversation, Message, Event
 
 
 class AgentSerializer(serializers.ModelSerializer):
@@ -59,3 +59,19 @@ class ConversationListSerializer(serializers.ModelSerializer):
 class ChatMessageSerializer(serializers.Serializer):
     """Serializer para enviar mensajes al chat"""
     message = serializers.CharField(required=True)
+
+
+class EventSerializer(serializers.ModelSerializer):
+    """Serializer para eventos guardados"""
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    conversation_title = serializers.CharField(source='conversation.title', read_only=True)
+
+    class Meta:
+        model = Event
+        fields = [
+            'id', 'user_email', 'conversation_title', 'event_name',
+            'event_date', 'location_name', 'latitude', 'longitude',
+            'weather_data', 'temperature', 'precipitation', 'wind_speed',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

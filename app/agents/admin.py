@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Agent, Conversation, Message
+from .models import Agent, Conversation, Message, Event
 
 
 @admin.register(Agent)
@@ -36,3 +36,25 @@ class MessageAdmin(admin.ModelAdmin):
     def content_preview(self, obj):
         return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
     content_preview.short_description = 'Content'
+
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ['id', 'event_name', 'user', 'event_date', 'location_name', 'temperature', 'created_at']
+    list_filter = ['event_date', 'created_at', 'user']
+    search_fields = ['event_name', 'location_name', 'user__email']
+    readonly_fields = ['created_at', 'updated_at', 'weather_data']
+    fieldsets = [
+        ('Información del Evento', {
+            'fields': ['user', 'conversation', 'event_name', 'event_date', 'location_name']
+        }),
+        ('Ubicación', {
+            'fields': ['latitude', 'longitude']
+        }),
+        ('Datos Meteorológicos', {
+            'fields': ['temperature', 'precipitation', 'wind_speed', 'weather_data']
+        }),
+        ('Metadata', {
+            'fields': ['created_at', 'updated_at']
+        }),
+    ]

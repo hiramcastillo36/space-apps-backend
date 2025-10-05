@@ -67,3 +67,51 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.role}: {self.content[:50]}"
+
+
+class Event(models.Model):
+    """Eventos mencionados por el usuario con información meteorológica"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events')
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name='events',
+        null=True,
+        blank=True
+    )
+
+    # Información del evento
+    event_name = models.CharField(max_length=200, help_text="Nombre o descripción del evento")
+    event_date = models.DateTimeField(help_text="Fecha y hora del evento")
+    location_name = models.CharField(max_length=200, blank=True, help_text="Nombre del lugar")
+
+    # Coordenadas geográficas
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+
+    # Datos meteorológicos (JSON)
+    weather_data = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Datos meteorológicos completos de la API"
+    )
+
+    # Parámetros específicos extraídos
+    temperature = models.FloatField(null=True, blank=True, help_text="Temperatura en °C")
+    precipitation = models.FloatField(null=True, blank=True, help_text="Precipitación en mm")
+    wind_speed = models.FloatField(null=True, blank=True, help_text="Velocidad del viento en km/h")
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'events'
+        ordering = ['-event_date']
+        indexes = [
+            models.Index(fields=['user', 'event_date']),
+            models.Index(fields=['event_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.event_name} - {self.event_date.strftime('%Y-%m-%d %H:%M')}"

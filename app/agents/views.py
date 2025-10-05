@@ -2,12 +2,13 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Agent, Conversation, Message
+from .models import Agent, Conversation, Message, Event
 from .serializers import (
     AgentSerializer,
     ConversationSerializer,
     ConversationListSerializer,
-    ChatMessageSerializer
+    ChatMessageSerializer,
+    EventSerializer
 )
 from .services import WeatherAgentService
 
@@ -86,3 +87,40 @@ class ConversationViewSet(viewsets.ModelViewSet):
             'agent': conversation.agent.name,
             'messages': history
         })
+
+
+class EventViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet para consultar eventos guardados"""
+    serializer_class = EventSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Event.objects.filter(user=self.request.user).order_by('-event_date')
+
+    @action(detail=False, methods=['get'])
+    def upcoming(self, request):
+        """
+        Obtener eventos próximos
+
+        GET /api/events/upcoming/
+        """
+        from django.utils import timezone
+        upcoming_events = self.get_queryset().filter(
+            event_date__gte=timezone.now()
+        )
+        serializer = self.get_serializer(upcoming_events, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def past(self, request):
+        """
+        Obtener eventos pasados
+
+        GET /api/events/past/
+        """
+        from django.utils import timezone
+        past_events = self.get_queryset().filter(
+            event_date__lt=timezone.now()
+        )
+        serializer = self.get_serializer(past_events, many=True)
+        return Response(serializer.data)
