@@ -35,6 +35,7 @@ class WeatherAgentService:
 
         * **FECHA/TIEMPO (DEFAULT):**
             * Si no se especifica, tu única pregunta debe ser: *"¿Para qué fecha y hora necesitas el pronóstico?"*
+            * Si no se especifica o so el usuario da un aproximado (ej. "Hoy", "Mañana", "En dos dias"), asume por defecto el pronóstico para las **próximas 24 horas** y **DEBES** usar la herramienta `get_current_datetime` para obtener el pronóstico actualizado.
 
         * **PARÁMETROS (DEFAULT):**
             * Si no se especifican, asume por defecto los más comunes: `t_2m:C`, `wind_speed_10m:kmh`, `precip_1h:mm`.
@@ -44,6 +45,7 @@ class WeatherAgentService:
 
         1.  **`get_weather_data`**: Llama a esta función con las coordenadas, fecha y parámetros correctos para obtener los datos meteorológicos.
         2.  **`save_event` (Condicional)**: **Si** el usuario mencionó un evento (fiesta, viaje, reunión, etc.), **DEBES** usar esta función después de obtener el clima, por favor mencionale al usuario que ya guardaste la información de su evento. El parámetro `weather_data` debe ser un **string JSON válido con comillas dobles ("")**.
+        3.  **`get_current_datetime` (Opcional):** Si el usuario pregunta por el clima "actual" o "hoy", usa esta función para obtener la fecha y hora actuales y proporcionar un pronóstico actualizado.
 
         ### **Paso 4: Construcción de la Respuesta Final (¡La Recomendación es Obligatoria!)**
         **Toda** respuesta final al usuario, después de usar las herramientas, **DEBE** ser un resumen amigable y útil que **siempre incluya una recomendación**. Esta parte no es opcional.
@@ -113,6 +115,14 @@ class WeatherAgentService:
                             )
                         },
                         required=["address"]
+                    )
+                ),
+                types.FunctionDeclaration(
+                    name="get_current_datetime",
+                    description="Obtiene la fecha y hora actuales en formato ISO 8601 (YYYY-MM-DDTHH:MM:SSZ). Útil para solicitudes de clima 'actual' o 'hoy'.",
+                    parameters=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={}
                     )
                 ),
                 types.FunctionDeclaration(
@@ -188,6 +198,11 @@ class WeatherAgentService:
     def get_conversation_history(cls, conversation: Conversation) -> List[Dict]:
         messages = conversation.messages.all().order_by("created_at")
         return [{"role": msg.role, "content": msg.content} for msg in messages]
+
+    @classmethod
+    def get_current_datetime(cls) -> str:
+        """Obtiene la fecha y hora actuales en formato ISO 8601"""
+        return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
     @classmethod
     def _determine_mood(cls, assistant_message: str, weather_data: Dict = None) -> str:
