@@ -43,7 +43,7 @@ class WeatherAgentService:
         Una vez que tengas la información completa, ejecuta las herramientas en este orden:
 
         1.  **`get_weather_data`**: Llama a esta función con las coordenadas, fecha y parámetros correctos para obtener los datos meteorológicos.
-        2.  **`save_event` (Condicional)**: **Si** el usuario mencionó un evento específico (fiesta, viaje, reunión, etc.), **DEBES** usar esta función después de obtener el clima. El parámetro `weather_data` debe ser un **string JSON válido con comillas dobles ("")**.
+        2.  **`save_event` (Condicional)**: **Si** el usuario mencionó un evento (fiesta, viaje, reunión, etc.), **DEBES** usar esta función después de obtener el clima, por favor mencionale al usuario que ya guardaste la información de su evento. El parámetro `weather_data` debe ser un **string JSON válido con comillas dobles ("")**.
 
         ### **Paso 4: Construcción de la Respuesta Final (¡La Recomendación es Obligatoria!)**
         **Toda** respuesta final al usuario, después de usar las herramientas, **DEBE** ser un resumen amigable y útil que **siempre incluya una recomendación**. Esta parte no es opcional.
