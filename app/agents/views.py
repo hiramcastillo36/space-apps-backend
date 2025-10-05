@@ -89,8 +89,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         })
 
 
-class EventViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet para consultar eventos guardados"""
+class EventViewSet(viewsets.ModelViewSet):
+    """ViewSet para consultar y gestionar eventos guardados"""
     serializer_class = EventSerializer
     permission_classes = [IsAuthenticated]
 
