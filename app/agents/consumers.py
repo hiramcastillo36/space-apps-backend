@@ -45,12 +45,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             conversation = await self.get_conversation(self.conversation_id)
 
             # Procesar mensaje con el agente (incluye function calling)
-            response = await self.process_message(conversation, message)
+            response_data = await self.process_message(conversation, message)
 
-            # Enviar respuesta del agente
+            # Enviar respuesta del agente con mood
             await self.send(text_data=json.dumps({
                 'type': 'agent_message',
-                'message': response
+                'message': response_data.get('message'),
+                'mood': response_data.get('mood')
             }))
 
         except Exception as e:

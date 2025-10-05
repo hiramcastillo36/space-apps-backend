@@ -188,6 +188,30 @@ class WeatherAgentService:
         return [{"role": msg.role, "content": msg.content} for msg in messages]
 
     @classmethod
+    def _determine_mood(cls, assistant_message: str, weather_data: Dict = None) -> str:
+        """
+        Determina el mood/estado para iluminar la interfaz basado en la respuesta
+        Returns: 'sunny', 'cloudy', 'rainy', 'stormy', 'neutral', 'success', 'loading'
+        """
+        message_lower = assistant_message.lower()
+
+        # Palabras clave para diferentes moods
+        if any(word in message_lower for word in ['soleado', 'despejado', 'perfecto', 'excelente', 'ideal', '☀️', 'sol']):
+            return 'sunny'
+        elif any(word in message_lower for word in ['lluvia', 'llover', 'precipitación', 'mojado', '🌧️', 'paraguas']):
+            return 'rainy'
+        elif any(word in message_lower for word in ['tormenta', 'vendaval', 'ráfagas', 'viento fuerte', '⛈️', 'peligro']):
+            return 'stormy'
+        elif any(word in message_lower for word in ['nublado', 'nubes', 'cubierto', 'gris', '☁️']):
+            return 'cloudy'
+        elif any(word in message_lower for word in ['guardado', 'evento guardado', 'registrado', '✅']):
+            return 'success'
+        elif any(word in message_lower for word in ['consultando', 'obteniendo', 'buscando', 'procesando']):
+            return 'loading'
+        else:
+            return 'neutral'
+
+    @classmethod
     def _initialize_gemini(cls):
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
@@ -345,7 +369,7 @@ class WeatherAgentService:
         return {"success": False, "error": f"Función '{function_name}' no reconocida"}
 
     @classmethod
-    def process_user_message(cls, conversation: Conversation, user_message: str) -> str:
+    def process_user_message(cls, conversation: Conversation, user_message: str) -> Dict:
         if not user_message or not user_message.strip():
             raise ValueError("El mensaje no puede estar vacío")
 
@@ -361,6 +385,8 @@ class WeatherAgentService:
 
             cls.add_message(conversation, "user", user_message)
             contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+
+            weather_data_from_api = None
 
             while True:
                 response = client.models.generate_content(
@@ -386,6 +412,10 @@ class WeatherAgentService:
 
                     function_result = cls._call_external_api(function_name, function_args, conversation)
 
+                    # Guardar datos del clima si se obtuvieron
+                    if function_name == "get_weather_data" and function_result.get("success"):
+                        weather_data_from_api = function_result.get("data")
+
                     contents.append(response.candidates[0].content)
                     contents.append(
                         types.Content(
@@ -404,7 +434,14 @@ class WeatherAgentService:
                     break
 
             cls.add_message(conversation, "assistant", assistant_message)
-            return assistant_message
+
+            # Determinar el mood para iluminar la interfaz
+            mood = cls._determine_mood(assistant_message, weather_data_from_api)
+
+            return {
+                "message": assistant_message,
+                "mood": mood
+            }
 
         except Exception as e:
             error_msg = f"Error al usar Google Gemini: {str(e)}"

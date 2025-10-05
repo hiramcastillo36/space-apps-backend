@@ -60,15 +60,16 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
         user_message = serializer.validated_data['message']
 
-        # Procesar mensaje y obtener respuesta
-        response_message = WeatherAgentService.process_user_message(
+        # Procesar mensaje y obtener respuesta con mood
+        response_data = WeatherAgentService.process_user_message(
             conversation,
             user_message
         )
 
         return Response({
             'user_message': user_message,
-            'assistant_message': response_message,
+            'assistant_message': response_data.get('message'),
+            'mood': response_data.get('mood'),
             'conversation_id': conversation.id
         })
 
