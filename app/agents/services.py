@@ -67,8 +67,11 @@ class WeatherAgentService:
 
         ### 📅 GUARDADO DE EVENTOS
 
-        Si el usuario menciona un evento (fiesta, reunión, viaje, etc.), *DEBES usar la función save_event*
+        Si el usuario menciona un evento (fiesta, reunión, viaje, etc.), **DEBES usar la función `save_event`**
         para guardar toda la información relevante del evento junto con los datos meteorológicos obtenidos.
+
+        **IMPORTANTE:** Cuando llames a `save_event`, el parámetro `weather_data` debe ser un **string JSON válido**.
+        Convierte el objeto de respuesta de la API a string JSON usando comillas dobles ("), NO comillas simples (').
     """
 
     TOOLS = [
@@ -199,7 +202,7 @@ class WeatherAgentService:
 
             # Debug: imprimir los argumentos recibidos
             print(f"Guardando evento con args: {args}")
-            # Extraer y validar los argumentos necesarios
+
             event_name = args.get("event_name")
             event_date_str = args.get("event_date")
             location_name = args.get("location_name", "")
@@ -215,25 +218,44 @@ class WeatherAgentService:
             wind_speed = None
 
             if weather_data_str:
+                weather_data = {"raw": weather_data_str}
+
                 try:
-                    weather_data = json.loads(weather_data_str) if isinstance(weather_data_str, str) else weather_data_str
+                    import ast
+                    parsed = None
+                    if isinstance(weather_data_str, str):
+                        try:
+                            parsed = json.loads(weather_data_str)
+                        except json.JSONDecodeError:
+                            try:
+                                parsed = ast.literal_eval(weather_data_str)
+                            except:
+                                pass
 
-                    if "data" in weather_data:
-                        for param in weather_data["data"]:
-                            param_name = param.get("parameter", "")
-                            if "coordinates" in param and len(param["coordinates"]) > 0:
-                                dates = param["coordinates"][0].get("dates", [])
-                                if dates and len(dates) > 0:
-                                    value = dates[0].get("value")
+                    if parsed and isinstance(parsed, dict):
+                        weather_data = parsed
 
-                                    if "t_2m:C" in param_name:
-                                        temperature = value
-                                    elif "precip" in param_name:
-                                        precipitation = value
-                                    elif "wind_speed" in param_name:
-                                        wind_speed = value
-                except json.JSONDecodeError:
-                    pass
+                        actual_data = parsed.get("data", parsed) if "success" in parsed else parsed
+
+                        if "data" in actual_data and isinstance(actual_data["data"], list):
+                            for param in actual_data["data"]:
+                                if isinstance(param, dict):
+                                    param_name = param.get("parameter", "")
+                                    coords = param.get("coordinates", [])
+                                    if coords and isinstance(coords, list):
+                                        dates_list = coords[0].get("dates", [])
+                                        if dates_list and isinstance(dates_list, list):
+                                            value = dates_list[0].get("value")
+
+                                            if "t_2m:C" in param_name:
+                                                temperature = value
+                                            elif "precip" in param_name:
+                                                precipitation = value
+                                            elif "wind_speed" in param_name:
+                                                wind_speed = value
+
+                except Exception as e:
+                    print(f"⚠️ Error extrayendo parámetros: {e}")
 
             event = Event.objects.create(
                 user=conversation.user,
